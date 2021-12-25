@@ -265,5 +265,4 @@ class CoreCommerce():
 
 
 if __name__ == '__main__':
-    cc = CoreCommerce('Zach','Fearful4jesuit!')
     cc.make_product('TEST PRODUCT','000000','3909','00000','00000','TEST DIVISION','TEST COMPANY', 'TEST COST CENTER', 'ADDRESS 1','ADDRESS 2', 'TEST DACIS', 'CAGE', 'TEST DUNS', 'TEST TYPE',r'C:\Users\Zachary\Desktop\TEST PRODUCT\TEST_PRODUCT.xlsx')
