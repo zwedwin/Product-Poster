@@ -3,20 +3,25 @@ import time
 import keyboard
 from datetime import date
 from selenium import webdriver
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import StaleElementReferenceException
 from selenium.common.exceptions import ElementClickInterceptedException
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
 class CoreCommerce():
+    """
+    This is a class that instantiates a chrome webdriver instance for one of our company websites.
+    It leverages this instance to post information on the company page.
+    I have tried and failed to remove the time.sleep() lines, the website is very dynamic and this leads to
+    many, hard to eliminate StaleElementReferenceException's. From what I understand AJAX protocols may be to blame
+    but its hard to know. Remove these waits at your own peril.
+    """
 
     def __init__(self,username,password):
         """ Set options for browser. Take in username and password. """
@@ -29,8 +34,8 @@ class CoreCommerce():
         caps = DesiredCapabilities.CHROME
         caps['goog:loggingPrefs'] = {'performance': 'ALL'}
         self.driver = webdriver.Chrome(options = options, desired_capabilities = caps)
+        self.driver.implicitly_wait(1)
         self.driver.get('https://mcnulty.corecommerce.com/admin/')
-        #WebDriverWait(self.driver,20).EC.
         self.driver.find_element_by_name('userId').send_keys(username)
         self.driver.find_element_by_name('password').send_keys(password)
         self.driver.find_element_by_xpath('//*[@id="admin-login-box-middle"]/form/div[2]/input').click()
@@ -43,18 +48,16 @@ class CoreCommerce():
         Note that this function runs under the assumption that SKU is unique.
         """
         self.driver.find_element_by_xpath('//*[@id="inputSearch"]').send_keys(SKU)
-        time.sleep(1)
         keyboard.press_and_release('enter')
-        time.sleep(2)
         try:
             #Look for "no products found" alert
             self.driver.find_element_by_xpath('//*[@id="adminFormMain"]/div/div/div[2]/div/form/div[2]/div/div')
+            #if no products found then go to the end of the list and copy the last product
             self.copy_last_product()
         except NoSuchElementException:
             #if not found this means there is an element with this SKU, use that element, list just incase partial match, not sure how CC search works
             url = self.driver.find_elements_by_xpath('//a[contains(@href,"index.php?m=edit_product")]')[0].get_attribute('href')
             self.driver.get(url)
-            time.sleep(0.5)
             self.product_info_url = self.driver.current_url
 
 
@@ -76,30 +79,22 @@ class CoreCommerce():
     def select_category(self,Division,Company_Name):
         """ Select category withtin product page. """
         self.driver.get(self.product_info_url)
+        #go to category pop up
         self.driver.find_element_by_xpath('//*[@id="informationSection"]/div[14]/div[1]/div/div[1]/a').click()
-        time.sleep(0.5)
-        errors = 0
         pg = 2
         while True:
             time.sleep(0.5)
+            for row in self.driver.find_elements_by_xpath('//td[contains(@id,"objectName")]/label'):
+                if Division in row.text:
+                    row.click()
+                    self.driver.find_element_by_xpath('/html/body/table/tbody/tr[2]/td[2]/div[1]/a/i').click()
+                    return None
             try:
-                for row in self.driver.find_elements_by_xpath('//td[contains(@id,"objectName")]/label'):
-                    if Division in row.text:
-                        row.click()
-                        self.driver.find_element_by_xpath('/html/body/table/tbody/tr[2]/td[2]/div[1]/a/i').click()
-                        return None
-                try:
-                    time.sleep(0.5)
-                    self.driver.find_elements_by_xpath('//a[@aria-label="Page ' + str(pg) + '"]')[0].click()
-                except NoSuchElementException:
-                    raise CustomError("Can't find the category to set :/")
-                pg += 1
-            except IndexError:
-                errors += 1
-                if errors < 100:
-                    pass
-                else:
-                    raise Exception("Having trouble Selecting.")
+                time.sleep(0.5)
+                self.driver.find_elements_by_xpath('//a[@aria-label="Page ' + str(pg) + '"]')[0].click()
+            except NoSuchElementException:
+                raise CustomError("Can't find the category to set :/")
+            pg += 1
 
 
     def add_category(self,Division,Company_Name):
@@ -146,6 +141,7 @@ class CoreCommerce():
         """ Clear all input in Info tab, set information. """
         self.driver.find_element_by_xpath('//*[@id="informationSection"]/div[1]/div[1]/div/input').clear()
         self.driver.find_element_by_xpath('//*[@id="informationSection"]/div[1]/div[2]/div/input').clear()
+        time.sleep(0.5)
         self.driver.find_element_by_xpath('//*[@id="informationSection"]/div[7]/div/div/div[1]/input').clear()
         self.driver.find_element_by_xpath('//*[@id="informationSection"]/div[8]/div[1]/div/input').clear()
         self.driver.find_element_by_xpath('//*[@id="informationSection"]/div[9]/div[2]/div/input').clear()
@@ -159,15 +155,21 @@ class CoreCommerce():
     def copy_last_product(self):
         """ Copy the last product. Assumes that if there is a last page there must be a product on that page """
         #click to the end of product list
-        time.sleep(1)
         self.driver.find_element_by_xpath('//*[@id="adminFormMain"]/div/div/div[64]/div/div[2]/nav/ul/a[11]').click()
-        time.sleep(1)
-        #click the gear for first one
-        self.driver.find_elements_by_xpath('//tr[contains(@id,"productRow")/td[15]/div/button]')[0].click()
-        time.sleep(1)
+        #click the first one
+        self.driver.get(self.driver.find_elements_by_xpath('//a[contains(@href,"index.php?m=edit")]')[0].get_attribute('href'))
+        #easier to execute javascript here than try to click the elements
+        button_class = self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]')
+        class_value = 'btn-group open'
+        button_dropdown_class = self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[2]')
+        dropdown_class_value = 'true'
+        self.driver.execute_script("arguments[0].setAttribute(arguments[1], arguments[2])", button_class,'class', class_value)
+        self.driver.execute_script("arguments[0].setAttribute(arguments[1], arguments[2])", button_dropdown_class, 'aria-expanded', dropdown_class_value)
         #copy the product
-        self.driver.find_elements_by_xpath('//tr[contains(@id,"productRow")/td[15]/div/ul/li[4]/a')[0].click()
-        time.sleep(5)
+        self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/ul/li[1]/a').click()
+        #wait until the product is fully copied unti
+        while('copyThisProduct=Y' in self.driver.current_url):
+            time.sleep(0.01)
         self.product_info_url = self.driver.current_url
 
 
@@ -222,20 +224,16 @@ class CoreCommerce():
     def get_search_tag(self):
         """Get search tag generated from"""
         self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]').click()
-        time.sleep(1)
         self.driver.find_element_by_xpath('//*[@id="headingSix"]/h4/a').click()
-        time.sleep(0.5)
         self.search_tag = self.driver.find_element_by_xpath('//*[@id="seoSection"]/div[1]/div/input').get_attribute('value')
 
 
     def select_file(self,file_path):
         """Download the file excel file from computer"""
         self.driver.find_element_by_xpath('//*[@id="downloadSection"]/div[1]/h4/a').click()
-        time.sleep(1)
         #send file path directly to the choose file button
         #make sure this has the file name in it/full file path, there is no error handling on the site just disconnects
         self.driver.find_element_by_xpath('//*[@id="pUpload_0"]/input').send_keys(file_path)
-        time.sleep(1)
         #save the product
         self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]').click()
 
@@ -249,28 +247,23 @@ class CoreCommerce():
 
     def make_product(self,Product_Name,SKU,Price,MSRP,Sale_Price,Division,Company_Name,Cost_Center,Address_1,Address_2,DACIS,CAGE,DUNS,WRAP_TYPE,file_path):
         """ Check if the product exists. If T make that product link the product link, else make a new product. """
+        #check if product exists
         self.check_for_product(SKU)
-        try:
-            #get rid of current category
-            self.driver.find_element_by_xpath('//*[@id="categories"]/li[2]/a').click()
-            time.sleep(0.5)
-        except(NoSuchElementException):
-            pass
+        #get rid of current category
+        self.driver.find_element_by_xpath('//*[@id="categories"]/li[2]/a').click()
         self.set_Information(Product_Name,SKU,Price,MSRP,Sale_Price)
+        #save changes, when we change url if we dont save, all changes are lost
+        #could be implemented with threading, but trying to avoid refresh errors
+        self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]').click()
+        self.set_category(Division,Company_Name)
         #save changes
         self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]').click()
-        time.sleep(0.5)
-        self.set_category(Division,Company_Name)
-        time.sleep(0.5)
-        self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]').click()
         self.set_Description(Company_Name, Division, Cost_Center, Address_1, Address_2, DACIS, CAGE, DUNS, WRAP_TYPE)
-        time.sleep(0.5)
         self.get_search_tag()
-        time.sleep(0.5)
         self.select_file(file_path)
         self.write_to_file(Product_Name)
 
 
 if __name__ == '__main__':
     cc = CoreCommerce('Zach','Fearful4jesuit!')
-    cc.make_product('TEST PRODUCT','00000','3909','00000','00000','TEST DIVISION','TEST COMPANY', 'TEST COST CENTER', 'ADDRESS 1','ADDRESS 2', 'TEST DACIS', 'CAGE', 'TEST DUNS', 'TEST TYPE',r'C:\Users\Zachary\Desktop\TEST PRODUCT\TEST_PRODUCT.xlsx')
+    cc.make_product('TEST PRODUCT','000000','3909','00000','00000','TEST DIVISION','TEST COMPANY', 'TEST COST CENTER', 'ADDRESS 1','ADDRESS 2', 'TEST DACIS', 'CAGE', 'TEST DUNS', 'TEST TYPE',r'C:\Users\Zachary\Desktop\TEST PRODUCT\TEST_PRODUCT.xlsx')
