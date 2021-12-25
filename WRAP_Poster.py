@@ -1,4 +1,3 @@
-import xlwings
 import time
 import keyboard
 from datetime import date
