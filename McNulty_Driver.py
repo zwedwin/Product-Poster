@@ -200,4 +200,4 @@ class McNulty():
 
 if __name__ == "__main__":
     md = McNulty()
-    md.set_Product_Info('jlauretti','L@ur3tt1Jul13n!','41QW7','Services','Arlington','VA','HAL-01','557581779','2.06%', '41QW7-S', 'TEST URL')
+    md.set_Product_Info('41QW7','Services','Arlington','VA','HAL-01','557581779','2.06%', '41QW7-S', 'TEST URL')
