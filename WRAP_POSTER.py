@@ -67,5 +67,5 @@ class WRAP_POSTER:
 
 
 if __name__ == '__main__':
-    wp = WRAP_POSTER('jlauretti','L@ur3tt1Jul13n!','Zach','Fearful4jesuit!','mmcnulty','mcnulty2015')
+    wp = WRAP_POSTER()
     wp.post_product()
