@@ -68,5 +68,5 @@ class DACIS():
         self.driver.get('https://ci-partners.dacis.com/wrap_rate_listing.lasso')
 
 if __name__=="__main__":
-    dd = DACIS('mmcnulty','mcnulty2015')
+    dd = DACIS()
     dd.make_product('AAC - Development - Hauppage','4GPS8','000000','http://store.mcnultyassociatesinc.com/aac-development-hauppage.html','Hauppauge','NY')
