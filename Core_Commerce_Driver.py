@@ -1,6 +1,7 @@
 import time
 import keyboard
 from datetime import date
+from difflib import SequenceMatcher
 from selenium import webdriver
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
@@ -12,6 +13,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from Core_Commerce_XML_API import CoreCommerce_XML_API
+
 
 class CoreCommerce():
     """
@@ -25,6 +28,7 @@ class CoreCommerce():
     def __init__(self,username,password,driver,window_handle):
         """Log in. Go to listing page. """
         self.driver = driver
+        self.CC_XML = CoreCommerce_XML_API('Zach', 'Fearful4jesuit!', 'mcnulty_xml')
         self.driver.switch_to.window(window_handle)
         self.driver.get('https://mcnulty.corecommerce.com/admin/')
         self.driver.find_element_by_name('userId').send_keys(username)
@@ -38,40 +42,24 @@ class CoreCommerce():
         Check if product exists by searching SKU. If T select product, else copy last product.
         Note that this function runs under the assumption that SKU is unique.
         """
-        time.sleep(1)
-        self.driver.find_element_by_xpath('//*[@id="inputSearch"]').click()
-        time.sleep(1)
-        self.driver.find_element_by_xpath('//*[@id="inputSearch"]').send_keys(SKU)
-        time.sleep(1)
-        keyboard.press_and_release('enter')
-        time.sleep(1)
-        try:
-            #Look for "no products found" alert
-            self.driver.find_element_by_xpath('//*[@id="adminFormMain"]/div/div/div[2]/div/form/div[2]/div/div')
-            #if no products found then go to the end of the list and copy the last product
+        url = self.CC_XML.find_product_url(SKU)
+        if url == None:
             self.copy_last_product()
-        except NoSuchElementException:
-            #if not found this means there is an element with this SKU, use that element, list just incase partial match, not sure how CC search works
-            url = self.driver.find_elements_by_xpath('//a[contains(@href,"index.php?m=edit_product")]')[0].get_attribute('href')
+        else:
+            self.product_info_url = url
             self.driver.get(url)
-            self.product_info_url = self.driver.current_url
+            time.sleep(1)
 
 
     def search_categories(self,Division,Company_Name):
         """ Search categories in large list (not in product page), return bool."""
-        self.driver.get('https://mcnulty.corecommerce.com/admin/index.php?m=category_browse&sort=0&asc=asc&page=1')
-        pg = 2
-        while True:
-            time.sleep(0.5)
-            for row in self.driver.find_elements_by_xpath('//a[@class="email-link"]'):
-                if Division in row.text:
-                    return True
-            try:
-                self.driver.find_element_by_xpath('//a[@aria-label="Page ' + str(pg) + '"]').click()
-            except NoSuchElementException:
-                return False
-            pg += 1
-
+        search_result = self.CC_XML.check_for_cat(Division)
+        if search_result == None:
+            self.cat_id = None
+            return False
+        else:
+            self.cat_id = search_result
+            return True
 
     def select_category(self,Division,Company_Name):
         """ Select category withtin product page. """
@@ -82,9 +70,15 @@ class CoreCommerce():
         pg = 2
         while True:
             time.sleep(0.5)
-            for row in self.driver.find_elements_by_xpath('//td[contains(@id,"objectName")]/label'):
-                if Division in row.text:
-                    row.click()
+            label_list = self.driver.find_elements_by_xpath('//td[contains(@id,"objectName")]/label')
+            id_list = self.driver.find_elements_by_xpath('//td[contains(@id,"objectName")]/input')
+            label_id = zip(label_list, id_list)
+            for label,id in label_id:
+                row_text = label.text
+                row_id = id.get_attribute('id')
+                #match = SequenceMatcher(row_text,Division).ratio()
+                if (Division in row_text) or (row_id == self.cat_id):
+                    id.click()
                     self.driver.find_element_by_xpath('/html/body/table/tbody/tr[2]/td[2]/div[1]/a/i').click()
                     return None
             try:
@@ -96,34 +90,8 @@ class CoreCommerce():
 
 
     def add_category(self,Division,Company_Name):
-        """ Add category. Calls itself to create parent category. """
-        self.driver.get('https://mcnulty.corecommerce.com/admin/index.php?m=add_category')
-        self.driver.find_element_by_xpath('//*[@id="collapseOne"]/div/div/div[1]/div[1]/div/input').send_keys(Division)
-        self.driver.find_element_by_xpath('//*[@id="collapseOne"]/div/div/div[3]/div/div/div/div[1]/a').click()
-        time.sleep(0.5)
-        pg = 2
-        while True:
-            time.sleep(0.5)
-            for row in self.driver.find_elements_by_xpath('//td[contains(@id,"objectName")]/label'):
-                if Company_Name in row.text:
-                    row.click()
-                    self.driver.find_element_by_xpath('/html/body/table/tbody/tr[2]/td[2]/div[1]/a/i').click()
-                    self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div/a[1]').click()
-                    return None
-            try:
-                self.driver.find_element_by_xpath('//a[@aria-label="Page ' + str(pg) + '"]').click()
-            except NoSuchElementException:
-                if bool((ord(Company_Name.strip()[0].upper()) - 64) % 2):
-                    alph_cat = Company_Name.strip()[0].upper() + '-' + chr(ord(Company_Name.strip()[0]) + 1).upper()
-                else:
-                    alph_cat = chr(ord(Company_Name.strip()[0]) - 1).upper() + '-' + Company_Name.strip()[0].upper()
-                self.add_category(Company_Name,alph_cat)
-                self.driver.get('https://mcnulty.corecommerce.com/admin/index.php?m=add_category')
-                self.driver.find_element_by_xpath('//*[@id="collapseOne"]/div/div/div[1]/div[1]/div/input').send_keys(Division)
-                self.driver.find_element_by_xpath('//*[@id="collapseOne"]/div/div/div[3]/div/div/div/div[1]/a').click()
-                time.sleep(0.5)
-                pg = 1
-            pg += 1
+        """ Add category. Uses XML API, handles parent category creation aswell."""
+        self.cat_id = self.CC_XML.add_cat(Division, Company_Name)
 
 
     def set_category(self,Division,Company_Name):
@@ -132,6 +100,9 @@ class CoreCommerce():
             self.select_category(Division,Company_Name)
         else:
             self.add_category(Division,Company_Name)
+            self.CC_XML.refresh_cat_map()
+            self.driver.refresh()
+            time.sleep(1)
             self.select_category(Division,Company_Name)
 
 
@@ -145,8 +116,9 @@ class CoreCommerce():
         self.driver.execute_script("arguments[0].innerHTML = arguments[1]", Product_name_location, product_name_html)
         self.driver.execute_script("arguments[0].innerHTML = arguments[1]", SKU_name_location, sku_html)
 
+
     def copy_last_product(self):
-        """ Copy the last product. Assumes that if there is a last page there must be a product on that page """
+        """ Copy the last product. Assumes that if there is a last page there must be a product on that page."""
         #click to the end of product list
         self.driver.find_element_by_xpath('//*[@id="adminFormMain"]/div/div/div[64]/div/div[2]/nav/ul/a[11]').click()
         #click the first one
@@ -160,7 +132,7 @@ class CoreCommerce():
         self.driver.execute_script("arguments[0].setAttribute(arguments[1], arguments[2])", button_dropdown_class, 'aria-expanded', dropdown_class_value)
         #copy the product
         self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/ul/li[1]/a').click()
-        #wait until the product is fully copied unti
+        #wait until the product is fully copied until
         while('copyThisProduct=Y' in self.driver.current_url):
             time.sleep(0.01)
         self.product_info_url = self.driver.current_url
@@ -227,7 +199,7 @@ class CoreCommerce():
         """Download the file excel file from computer"""
         self.driver.find_element_by_xpath('//*[@id="downloadSection"]/div[1]/h4/a').click()
         #send file path directly to the choose file button
-        #make sure this has the file name in it/full file path, there is no error handling on the site just disconnects
+        #make sure this has the file name in it/full file path, there is no error handling on the server side, just disconnects
         self.driver.find_element_by_xpath('//*[@id="pUpload_0"]/input').send_keys(file_path)
         time.sleep(2)
         #save the product
@@ -237,7 +209,7 @@ class CoreCommerce():
     def write_to_file(self,Product_Name):
         file_title = "WRAPs Posted " + date.today().strftime("%d%m%Y") + ".txt"
         WRAP_file = open(file_title, 'a')
-        WRAP_file.write(Product_Name + "\t\t" + self.search_tag)
+        WRAP_file.write(Product_Name + "\t\t" + self.search_tag + '\n')
         WRAP_file.close()
 
 
@@ -254,7 +226,7 @@ class CoreCommerce():
         except NoSuchElementException:
             pass
         self.set_Information(Product_Name,SKU)
-        #save changes, when we change url if we dont save, all changes are lost
+        #save changes, when we change url if we dont save all changes are lost
         #could be implemented with threading, but trying to avoid refresh errors
         self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]').click()
         time.sleep(0.5)
@@ -269,9 +241,7 @@ class CoreCommerce():
         self.select_file(file_path)
         time.sleep(1)
         self.write_to_file(Product_Name)
+        #add the current product to the CCXML sku:id map so we dont have to reload the product map between posts
+        product_id = self.product_info_url.replace('https://mcnulty.corecommerce.com/admin/index.php?m=edit_product&pID=','').replace('&back=1','')
+        self.CC_XML.map[SKU] = product_id
         self.driver.get('https://mcnulty.corecommerce.com/admin/index.php?m=products_browse&sort=0')
-
-
-if __name__ == '__main__':
-    cc = CoreCommerce()
-    cc.make_product('TEST PRODUCT','000000','TEST DIVISION','TEST COMPANY','TEST COST CENTER', 'ADDRESS 1','ADDRESS 2', 'TEST DACIS', 'CAGE', 'TEST DUNS', 'TEST TYPE',r'C:\Users\Zachary\Desktop\WRAP Poster\TEST PRODUCT\TEST_PRODUCT.xlsx')
