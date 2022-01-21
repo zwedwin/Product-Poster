@@ -13,6 +13,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support.ui import Select
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
@@ -35,6 +36,7 @@ class McNulty():
         self.driver.switch_to.window(window_handle)
         self.driver.get('https://primemover.mcnulty.us/index.lasso')
         self.login(username, password)
+
 
     def type_text(self, string, web_element):
         """
@@ -72,10 +74,10 @@ class McNulty():
         This assumes that no two products can have all the sames fields listed here.
         """
         self.driver.get('https://primemover.mcnulty.us/wraps/list.lasso')
-        if CAGE[0] == "'":
-            CAGE = CAGE[1:]
         search_bar = self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing_filter"]/label/input')
-        search_bar.send_keys(CAGE)
+        search_list = [CAGE, DACIS, DUNS]
+        search_list_mod = [code for code in search_list if code.strip() != '']
+        search_bar.send_keys(search_list_mod[0])
         i = 1
         while True:
             match = True
@@ -83,11 +85,13 @@ class McNulty():
                 #type of WRAP
                 match = match and Type == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[4]').text
                 #City
-                match = match and City == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[6]').text
+                # print(City)
+                # match = match and City == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[6]').text
                 #State
-                match = match and State == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[7]').text
+                # print(State)
+                # match = match and State == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[7]').text
                 #DACIS
-                if DACIS != "":
+                if not DACIS == "":
                     match = match and DACIS == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[8]').text
                 #DUNS
                 match = match and DUNS == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[10]').text
@@ -110,14 +114,32 @@ class McNulty():
         self.driver.find_element_by_xpath('/html/body/div[2]/div/div[2]/ul/li[1]/a').click()
         time.sleep(0.5)
         mover_decimal_string = self.driver.find_element_by_xpath('//*[@id="companyData_materialHandelingRatePercent"]').get_attribute('value')[:-1]
-        mover_decimal = float(mover_decimal_string)
+        try:
+            mover_decimal = float(mover_decimal_string)
+        except ValueError:
+            mover_decimal = 0.0
         xl_decimal = float(xl_percent)
         if xl_decimal == mover_decimal:
             return True
         else:
             xl_decimal_d = str(xl_decimal)
-            mat_hand_elmt = self.driver.find_element_by_xpath('//*[@id="companyData_materialHandelingRatePercent"]')
-            self.type_text(xl_decimal_d,mat_hand_elmt)
+            element = self.driver.find_element_by_xpath('//*[@id="companyData_materialHandelingRatePercent"]')
+            self.driver.execute_script('arguments[0].click();', element)
+            self.driver.execute_script("arguments[0].value='"+ xl_decimal_d +"'", element)
+
+
+    def get_city(self):
+        self.driver.find_element_by_xpath('/html/body/div[2]/div/div[2]/ul/li[1]/a').click()
+        time.sleep(2)
+        City = self.driver.find_element_by_xpath('//*[@id="companyData_city"]').get_attribute('value')
+        return City
+
+
+    def get_state(self):
+        self.driver.find_element_by_xpath('/html/body/div[2]/div/div[2]/ul/li[1]/a').click()
+        time.sleep(2)
+        State = self.driver.find_element_by_xpath('//*[@id="companyData_state"]').get_attribute('value')
+        return State
 
 
     def set_4ColumnData(self, Date_Posted, Product_URL):
@@ -132,25 +154,20 @@ class McNulty():
         #select yes On eWRAP site
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_onSite"]').click()
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_onSite"]/option[2]').click()
-        #product Code
-        # time.sleep(1)
-        # self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_productCode"]').send_keys(Keys.CONTROL + "a")
-        # self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_productCode"]').send_keys(Keys.DELETE)
-        # self.type_text(Product_Code, self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_productCode"]'))
         #date posted
-        time.sleep(1)
+        WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="wrapData_eWrap_postedDate"]')))
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_postedDate"]').send_keys(Keys.CONTROL + "a")
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_postedDate"]').send_keys(Keys.DELETE)
-        date_element = self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_postedDate"]').click()
-        pyautogui.press('enter')
+        self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_postedDate"]').send_keys(Date_Posted)
+        self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_postedDate"]').send_keys(Keys.TAB)
+        #self.type_text(Date_Posted, self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_postedDate"]'))
+
         #Product_URL
-        time.sleep(1)
-        self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]').click()
-        self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]').click()
-        time.sleep(2)
+        WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="wrapData_eWrap_url"]')))
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]').send_keys(Keys.CONTROL + "a")
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]').send_keys(Keys.DELETE)
-        self.type_text(Product_URL, self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]'))
+        self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]').send_keys(Product_URL)
+        #self.type_text(Product_URL, self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]'))
 
 
     def get_Product_Name(self):
@@ -181,13 +198,14 @@ class McNulty():
         self.search(CAGE, Type, City, State_Short, DACIS, DUNS)
         self.check_mat_handle(mat_hand)
 
+
     def set_Product_Info(self, Product_URL):
         """
         Consolidates all neccessary post function calls to one place. Assumes product is always being posted today
         i.e. all other DACIS and CC calls are made at the same time.
         """
         date_today = date.today()
-        date_string = date_today.strftime("%m/%d/%y")
+        date_string = date_today.strftime("%m/%d/%Y")
         self.set_4ColumnData(date_string, Product_URL)
 
 
@@ -197,7 +215,3 @@ class McNulty():
         Must be explicitly called by user once they are positive product info is correct.
         """
         self.driver.execute_script("arguments[0].click();",self.driver.find_element_by_xpath('//*[@id="formatTable"]/div[5]/div[1]/button'))
-
-if __name__ == "__main__":
-    md = McNulty()
-    md.set_Product_Info('41QW7','Services','Arlington','VA','HAL-01','557581779','2.06%', '41QW7-S', 'TEST URL')
