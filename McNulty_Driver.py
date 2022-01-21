@@ -84,12 +84,6 @@ class McNulty():
             try:
                 #type of WRAP
                 match = match and Type == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[4]').text
-                #City
-                # print(City)
-                # match = match and City == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[6]').text
-                #State
-                # print(State)
-                # match = match and State == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[7]').text
                 #DACIS
                 if not DACIS == "":
                     match = match and DACIS == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[8]').text
@@ -160,14 +154,12 @@ class McNulty():
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_postedDate"]').send_keys(Keys.DELETE)
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_postedDate"]').send_keys(Date_Posted)
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_postedDate"]').send_keys(Keys.TAB)
-        #self.type_text(Date_Posted, self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_postedDate"]'))
 
         #Product_URL
         WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="wrapData_eWrap_url"]')))
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]').send_keys(Keys.CONTROL + "a")
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]').send_keys(Keys.DELETE)
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]').send_keys(Product_URL)
-        #self.type_text(Product_URL, self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]'))
 
 
     def get_Product_Name(self):
@@ -176,7 +168,6 @@ class McNulty():
         """
         #navigate to eWRap Tab
         self.driver.execute_script("arguments[0].click();",self.driver.find_element_by_xpath('/html/body/div[2]/div/div[2]/ul/li[6]/a'))
-        #self.driver.find_element_by_xpath('/html/body/div[2]/div/div[2]/ul/li[6]/a').click()
         #product name
         return self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_productName"]').get_attribute('value')
 
