@@ -10,6 +10,7 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
+
 class DACIS():
     """
     Driver for DACIS website. Similar posts relevant info. Much simpler than the CC driver,
@@ -63,10 +64,6 @@ class DACIS():
         if self.search(CAGE_Code, DACIS_Company_Code):
             self.edit_product(product_Name, CAGE_Code, DACIS_Company_Code, URL, city, state)
         else:
-            self.find_element_by_xpath('/html/body/div/div/div/div/div/nav/section/ul[2]/li[2]/a').click()
+            self.driver.find_element_by_xpath('/html/body/div/div/div/div/div/nav/section/ul[2]/li[2]/a').click()
             self.edit_product(product_Name, CAGE_Code, DACIS_Company_Code, URL, city, state)
         self.driver.get('https://ci-partners.dacis.com/wrap_rate_listing.lasso')
-
-if __name__=="__main__":
-    dd = DACIS()
-    dd.make_product('AAC - Development - Hauppage','4GPS8','000000','http://store.mcnultyassociatesinc.com/aac-development-hauppage.html','Hauppauge','NY')
