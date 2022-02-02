@@ -16,7 +16,8 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from Core_Commerce_XML_API import CoreCommerce_XML_API
 
 
-class CoreCommerce():
+
+class CoreCommerce:
     """
     This is a class that instantiates a chrome webdriver instance for one of our company websites.
     It leverages this instance to post information on the company page.
@@ -35,6 +36,9 @@ class CoreCommerce():
         self.driver.find_element_by_name('password').send_keys(password)
         self.driver.find_element_by_xpath('//*[@id="admin-login-box-middle"]/form/div[2]/input').click()
         self.driver.get('https://mcnulty.corecommerce.com/admin/index.php?m=products_browse&sort=0')
+        time.sleep(2)
+        if self.driver.current_url != 'https://mcnulty.corecommerce.com/admin/index.php?m=products_browse&sort=0':
+            raise ValueError('Invalid CC username.')
 
 
     def check_for_product(self,SKU):
@@ -61,11 +65,12 @@ class CoreCommerce():
             self.cat_id = search_result
             return True
 
+
     def select_category(self,Division,Company_Name):
         """ Select category withtin product page. """
-        self.driver.get(self.product_info_url)
         #go to category pop up, page needs to load properly sometimes the xpath below is linked to another element
         time.sleep(1)
+        WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.XPATH,'//*[@id="informationSection"]/div[14]/div[1]/div/div[1]/a')))
         self.driver.find_element_by_xpath('//*[@id="informationSection"]/div[14]/div[1]/div/div[1]/a').click()
         pg = 2
         while True:
@@ -107,14 +112,14 @@ class CoreCommerce():
 
 
     def set_Information(self,Product_Name,SKU):
-        """ Clear all input in Info tab, set information. """
+        """Set information for info tab."""
         time.sleep(1)
-        product_name_html = '<input class="form-control" type="text" name="pName[1]" value=' + '"' + Product_Name + '"' + '>'
-        sku_html = '<input class="form-control" type="text" name="pNum" maxlength="60" value='+ '"' + SKU + '"' +'>'
-        Product_name_location = self.driver.find_element_by_xpath('//*[@id="informationSection"]/div[1]/div[1]/div/input')
-        SKU_name_location = self.driver.find_elements_by_xpath('//*[@id="informationSection"]/div[1]/div[2]/div/input')
-        self.driver.execute_script("arguments[0].innerHTML = arguments[1]", Product_name_location, product_name_html)
-        self.driver.execute_script("arguments[0].innerHTML = arguments[1]", SKU_name_location, sku_html)
+        product_name_element = self.driver.find_element_by_xpath('//*[@id="informationSection"]/div[1]/div[1]/div/input')
+        sku_element = self.driver.find_element_by_xpath('//*[@id="informationSection"]/div[1]/div[2]/div/input')
+        WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.XPATH,'//*[@id="informationSection"]/div[1]/div[1]/div/input')))
+        self.driver.execute_script('arguments[0].setAttribute(arguments[1], arguments[2])', product_name_element, 'value', Product_Name)
+        WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.XPATH,'//*[@id="informationSection"]/div[1]/div[2]/div/input')))
+        self.driver.execute_script('arguments[0].setAttribute(arguments[1], arguments[2])', sku_element, 'value', SKU)
 
 
     def copy_last_product(self):
@@ -167,7 +172,7 @@ class CoreCommerce():
         self.driver.execute_script("arguments[0].innerHTML = arguments[1]",Address_2_element,new_HTML)
 
         DACIS_element = self.driver.find_element_by_xpath('/html/body/div[8]')
-        new_HTML = '<strong>DACIS Code:&nbsp;</strong>' + DACIS
+        new_HTML = '<strong>DACIS:&nbsp;</strong>' + DACIS
         self.driver.execute_script("arguments[0].innerHTML = arguments[1]",DACIS_element,new_HTML)
 
         CAGE_element = self.driver.find_element_by_xpath('/html/body/div[9]')
@@ -175,7 +180,7 @@ class CoreCommerce():
         self.driver.execute_script("arguments[0].innerHTML = arguments[1]",CAGE_element,new_HTML)
 
         DUNS_element = self.driver.find_element_by_xpath('/html/body/div[10]')
-        new_HTML = '<strong>DACIS Code:&nbsp;</strong>' + DUNS
+        new_HTML = '<strong>DUNS:&nbsp;</strong>' + DUNS
         self.driver.execute_script("arguments[0].innerHTML = arguments[1]",DUNS_element,new_HTML)
 
         Type_element = self.driver.find_element_by_xpath('/html/body/div[11]')
@@ -206,42 +211,76 @@ class CoreCommerce():
         self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]').click()
 
 
-    def write_to_file(self,Product_Name):
-        file_title = "WRAPs Posted " + date.today().strftime("%d%m%Y") + ".txt"
-        WRAP_file = open(file_title, 'a')
-        WRAP_file.write(Product_Name + "\t\t" + self.search_tag + '\n')
-        WRAP_file.close()
-
-
     def make_product(self,Product_Name,SKU,Division,Company_Name,Cost_Center,Address_1,Address_2,DACIS,CAGE,DUNS,WRAP_TYPE,file_path):
         """ Check if the product exists. If T make that product link the product link, else make a new product. """
         #check if product exists
-        self.check_for_product(SKU)
-        #get rid of current category
-        time.sleep(1)
         try:
-            self.driver.find_element_by_xpath('//*[@id="categories"]/li[2]/a').click()
-            #save changes to category
+            self.check_for_product(SKU)
+            #get rid of current category
             time.sleep(1)
+            try:
+                self.driver.find_element_by_xpath('//*[@id="categories"]/li[2]/a').click()
+                #save changes to category
+                time.sleep(1)
+            except NoSuchElementException:
+                pass
+            self.set_Information(Product_Name,SKU)
+            #save changes, when we change url if we dont save all changes are lost
+            #could be implemented with threading, but trying to avoid refresh errors
+            WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.XPATH,'//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]')))
+            self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]').click()
+            time.sleep(0.5)
+            self.set_category(Division,Company_Name)
+            #save changes
+            self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]').click()
+            time.sleep(1)
+            self.set_Description(Company_Name, Division, Cost_Center, Address_1, Address_2, DACIS, CAGE, DUNS, WRAP_TYPE)
+            time.sleep(1)
+            self.get_search_tag()
+            time.sleep(1)
+            self.select_file(file_path)
+            time.sleep(1)
+            #add the current product to the CCXML sku:id map so we dont have to reload the product map between posts
+            product_id = self.product_info_url.replace('https://mcnulty.corecommerce.com/admin/index.php?m=edit_product&pID=','').replace('&back=1','')
+            self.CC_XML.map[SKU] = product_id
+            self.driver.get('https://mcnulty.corecommerce.com/admin/index.php?m=products_browse&sort=0')
         except NoSuchElementException:
-            pass
-        self.set_Information(Product_Name,SKU)
-        #save changes, when we change url if we dont save all changes are lost
-        #could be implemented with threading, but trying to avoid refresh errors
-        self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]').click()
-        time.sleep(0.5)
-        self.set_category(Division,Company_Name)
-        #save changes
-        self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]').click()
-        time.sleep(1)
-        self.set_Description(Company_Name, Division, Cost_Center, Address_1, Address_2, DACIS, CAGE, DUNS, WRAP_TYPE)
-        time.sleep(1)
-        self.get_search_tag()
-        time.sleep(1)
-        self.select_file(file_path)
-        time.sleep(1)
-        self.write_to_file(Product_Name)
-        #add the current product to the CCXML sku:id map so we dont have to reload the product map between posts
-        product_id = self.product_info_url.replace('https://mcnulty.corecommerce.com/admin/index.php?m=edit_product&pID=','').replace('&back=1','')
-        self.CC_XML.map[SKU] = product_id
-        self.driver.get('https://mcnulty.corecommerce.com/admin/index.php?m=products_browse&sort=0')
+            #my idea here is to filter out any weirdness with the description box that regularly comes up, pretty much just ignore the erorr
+            #make a new product, and log in a file that there is probably a duplicate of this file on CC
+
+            WRAP_file = open('ERROR LOG ' + date.today().strftime("%d%m%Y") + '.txt', 'a')
+            WRAP_file.write('An error occured while making: ' + Product_Name + ' ' + SKU + '. There is likely a duplicate on CC. ')
+
+            self.driver.get('https://mcnulty.corecommerce.com/admin/index.php?m=products_browse&sort=0')
+            self.copy_last_product()
+            time.sleep(1)
+            try:
+                self.driver.find_element_by_xpath('//*[@id="categories"]/li[2]/a').click()
+                #save changes to category
+                time.sleep(1)
+            except NoSuchElementException:
+                pass
+            self.set_Information(Product_Name,SKU)
+            #save changes, when we change url if we dont save all changes are lost
+            #could be implemented with threading, but trying to avoid refresh errors
+            WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.XPATH,'//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]')))
+            self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]').click()
+            time.sleep(0.5)
+            self.set_category(Division,Company_Name)
+            #save changes
+            self.driver.find_element_by_xpath('//*[@id="controls"]/div/div[1]/div/div[2]/div[2]/a[1]').click()
+            time.sleep(1)
+            self.set_Description(Company_Name, Division, Cost_Center, Address_1, Address_2, DACIS, CAGE, DUNS, WRAP_TYPE)
+            time.sleep(1)
+            self.get_search_tag()
+            time.sleep(1)
+            self.select_file(file_path)
+            time.sleep(1)
+            #add the current product to the CCXML sku:id map so we dont have to reload the product map between posts
+            product_id = self.product_info_url.replace('https://mcnulty.corecommerce.com/admin/index.php?m=edit_product&pID=','').replace('&back=1','')
+
+            WRAP_file.write('The completed product ID is:' + str(product_id) + '\n')
+            WRAP_file.close()
+
+            self.CC_XML.map[SKU] = product_id
+            self.driver.get('https://mcnulty.corecommerce.com/admin/index.php?m=products_browse&sort=0')
