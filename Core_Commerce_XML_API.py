@@ -1,11 +1,15 @@
 import requests
-from CoreCommerce_XML import CoreCommerce_XML
+from Core_Commerce_XML import Core_Commerce_XML
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import math
 
 
 class CoreCommerce_XML_API:
+    """
+    Handles interaction with the CC API which happens to take XML. Some of the
+    larger XML files are stored Core_Commerce_XML.
+    """
 
     def __init__(self, username, password, xml_key):
         self.username = username
@@ -57,9 +61,8 @@ class CoreCommerce_XML_API:
 
     def get_prod_qty(self):
         """Gets total amount of products on Core Commerce."""
-        cc_xml = requests.post('https://mcnulty.corecommerce.com/admin/_callback.php', data = self.get_list_xml(0,1))
+        cc_xml = requests.post('https://mcnulty.corecommerce.com/admin/_callback.php', data = self.get_list_xml(0,1), headers = {'Accept-Encoding':'gzip'})
         root = ET.fromstring(cc_xml.content)
-        xmlstr = minidom.parseString(ET.tostring(root)).toprettyxml(indent="   ")
         possible_length = int(root.find('List').get('possibleLength'))
         return possible_length
 
@@ -92,27 +95,27 @@ class CoreCommerce_XML_API:
         """
         Adds category to CoreCommerce. Return catgorey id as a string.
         Added logic to change the ampersands (&) to "&amp;", required by XML.
+        This has now officially become the ugliest function ever, but I am scared to clean the strings anywhere else
+        because I may have forgottten some weird small bit of logic... so the cleaning happens right in the call!!!
         """
         try:
             self.cat_map[parent_name]
         except KeyError:
             parent_parent = self.get_alpha_cat(parent_name)
             parent_parent = self.alpha_cat(parent_parent)
-            parent_add_xml = CoreCommerce_XML.cat_add_xml(parent_name.replace('&','&amp;'), parent_parent)
-            response = requests.post('https://mcnulty.corecommerce.com/admin/_callback.php', data = parent_add_xml)
-        cat_add_xml = CoreCommerce_XML.cat_add_xml(division_name.replace('&','&amp;'), parent_name.replace('&','&amp;'))
-        response = requests.post('https://mcnulty.corecommerce.com/admin/_callback.php', data = cat_add_xml)
+            parent_add_xml = Core_Commerce_XML.cat_add_xml(parent_name.replace('&','&amp;').replace(u'\u00A0',' ').replace(u'\u2013','-'), parent_parent)
+            response = requests.post('https://mcnulty.corecommerce.com/admin/_callback.php', data = parent_add_xml, headers = {'Accept-Encoding':'gzip'})
+        cat_add_xml = Core_Commerce_XML.cat_add_xml(division_name.replace('&','&amp;').replace(u'\u00A0',' ').replace(u'\u2013','-'), parent_name.replace('&','&amp;').replace(u'\u00A0',' ').replace(u'\u2013','-'))
+        response = requests.post('https://mcnulty.corecommerce.com/admin/_callback.php', data = cat_add_xml, headers = {'Accept-Encoding':'gzip'})
         root = ET.fromstring(response.content)
-        xmlstr = minidom.parseString(ET.tostring(root)).toprettyxml(indent="   ")
         category_id = [elem.attrib['id'] for elem in root.iter('Category')][0]
         return category_id
 
 
     def get_cat_qty(self):
         """Gets total amount of categories on Core Commerce."""
-        cc_cat_xml = requests.post('https://mcnulty.corecommerce.com/admin/_callback.php', data = self.get_cat_list_xml(0,1))
+        cc_cat_xml = requests.post('https://mcnulty.corecommerce.com/admin/_callback.php', data = self.get_cat_list_xml(0,1), headers = {'Accept-Encoding':'gzip'})
         root = ET.fromstring(cc_cat_xml.content)
-        xmlstr = minidom.parseString(ET.tostring(root)).toprettyxml(indent="   ")
         possible_length = int(root.find('List').get('possibleLength'))
         return possible_length
 
@@ -138,10 +141,9 @@ class CoreCommerce_XML_API:
         iter = int(math.ceil(max_qty/240))
         cat_dict = {}
         for i in range(iter):
-            response = requests.post('https://mcnulty.corecommerce.com/admin/_callback.php', data = self.get_cat_list_xml(240*i))
+            response = requests.post('https://mcnulty.corecommerce.com/admin/_callback.php', data = self.get_cat_list_xml(240*i), headers = {'Accept-Encoding':'gzip'})
             if str(response.status_code) == "200":
                 root = ET.fromstring(response.content)
-                xmlstr = minidom.parseString(ET.tostring(root)).toprettyxml(indent = "   ")
                 cat_list = [elem.text.strip() for elem in root.iter('Name')]
                 cat_id_list = [elem.attrib['id'].strip() for elem in root.iter('Category')]
                 cat_id = zip(cat_list, cat_id_list)
@@ -161,11 +163,9 @@ class CoreCommerce_XML_API:
         iter = int(math.ceil(max_qty/240))
         sku_id_map = {}
         for i in range(iter):
-            response = requests.post('https://mcnulty.corecommerce.com/admin/_callback.php', data = self.get_list_xml(240*i))
+            response = requests.post('https://mcnulty.corecommerce.com/admin/_callback.php', data = self.get_list_xml(240*i), headers = {'Accept-Encoding':'gzip'})
             if str(response.status_code) == "200":
                 root = ET.fromstring(response.content)
-                xmlstr = minidom.parseString(ET.tostring(root)).toprettyxml(indent = "   ")
-
                 sku_list = [elem.text for elem in root.iter('Sku')]
                 id_list = [elem.attrib['id'] for elem in root.iter('Product')]
                 sku_id = zip(sku_list, id_list)
