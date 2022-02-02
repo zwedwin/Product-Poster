@@ -7,24 +7,69 @@ from os.path import isfile, join
 import shutil
 
 class WRAP_Queue():
+    """
+    Handles queue of WRAPs to post in the WRAPS_TO_POST folder. Uses openpyxl to
+    get data from excel files. Did not use xlwings here as it has to open the file to read it.
+    This leads to some focus errors on the selenium side.
+    """
 
     def __init__(self):
         self.WRAP_info = {}
+        self.set_WRAP_queue()
+        try:
+            self.current_wrap = self.WRAP_queue.get(False)
+            self.set_WRAP_info()
+            self.is_empty = False
+        except queue.Empty:
+            self.is_empty = True
+
+
+    def __call__(self):
+        self.set_WRAP_queue()
+        try:
+            self.current_wrap = self.WRAP_queue.get(False)
+            self.set_WRAP_info()
+            return True
+        except queue.Empty:
+            return False
+
+
+    def set_WRAP_queue(self):
         current_path = os.path.dirname(__file__)
         self.post_path = current_path + "\\WRAPS_TO_POST"
         self.posted_path = os.path.dirname("WRAPS_POSTED") + '\\WRAPS_POSTED'
         files_list = [f for f in listdir(self.post_path) if isfile(join(self.post_path, f))]
+        #there are weird windows files that start with ~$ which openpyxl does not like, filter them out
+        files_list_full_sorted = [(self.post_path + '\\' + file) for file in files_list if not file.startswith('~$')]
+        files_list_full_sorted.sort(key = lambda x: os.path.getmtime(x), reverse = True)
         self.WRAP_queue = queue.Queue()
-        for file in files_list:
-            self.WRAP_queue.put(self.post_path + "\\" + file)
-        self.current_wrap = self.WRAP_queue.get()
-        self.set_WRAP_info()
+        for file in files_list_full_sorted:
+            self.WRAP_queue.put(file)
+        return None
+
+
+    def discard_WRAP(self):
+        shutil.move(self.current_wrap, self.current_wrap.replace('WRAPS_TO_POST','PROBLEM_WRAPS'))
+        self.set_WRAP_queue()
+        #throws error if queue empty
+        try:
+            self.current_wrap = self.WRAP_queue.get(False)
+            self.set_WRAP_info()
+        except queue.Empty:
+            for key in self.WRAP_info:
+                self.WRAP_info[key] = ''
 
 
     def next_WRAP(self):
         shutil.move(self.current_wrap, self.current_wrap.replace('WRAPS_TO_POST','WRAPS_POSTED'))
-        self.current_wrap = self.WRAP_queue.get()
-        self.set_WRAP_info()
+        self.set_WRAP_queue()
+        #throws error if queue empty
+        try:
+            self.current_wrap = self.WRAP_queue.get(False)
+            self.set_WRAP_info()
+        except queue.Empty:
+            for key in self.WRAP_info:
+                self.WRAP_info[key] = ''
 
 
     def set_WRAP_info(self):
