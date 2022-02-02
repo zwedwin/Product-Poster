@@ -6,19 +6,18 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from datetime import date
+import queue
 
 
 class WRAP_POSTER:
 
     def __init__(self, pm_user, pm_pass, cc_user, cc_pass, DACIS_user, DACIS_pass):
         options = Options()
-        options.headless = False
-        prefs = {"profile.managed_default_content_settings.images": 2}
-        options.add_experimental_option("prefs", prefs)
-        options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        caps = DesiredCapabilities.CHROME
-        caps['goog:loggingPrefs'] = {'performance': 'ALL'}
-        self.driver = webdriver.Chrome(options = options, desired_capabilities = caps)
+        options.add_argument("--window-size=1920,1080")
+        options.add_argument("--start-maximized")
+        options.add_argument("--headless")
+        self.driver = webdriver.Chrome(options = options)
         self.driver.implicitly_wait(10)
         self.driver.execute_script("window.open()")
         self.driver.execute_script("window.open()")
@@ -52,24 +51,23 @@ class WRAP_POSTER:
 
         #Step 3: Post info to DACIS
         self.driver.switch_to.window(self.driver.window_handles[2])
-        self.DACIS.make_product(self.WRAP_INFO['Product Name'], self.WRAP_INFO['CAGE'], self.WRAP_INFO['DACIS'], self.WRAP_INFO['Search Tag'],
-                                self.WRAP_INFO['City'], self.WRAP_INFO['State'])
+        self.DACIS.make_product(self.WRAP_INFO['Product Name'], self.WRAP_INFO['CAGE'], self.WRAP_INFO['DACIS'], self.WRAP_INFO['DUNS'],
+                                self.WRAP_INFO['Search Tag'], self.WRAP_INFO['City'], self.WRAP_INFO['State'])
 
         #Step 4: Set prime mover link and date and save
         self.driver.switch_to.window(self.driver.window_handles[0])
         self.MD.set_Product_Info(self.WRAP_INFO['Search Tag'])
-        u_input = input('Post WRAP?')
-        if(u_input == "yes"):
-            self.MD.post_WRAP()
+        self.MD.post_WRAP()
 
         #Step 5: Save and Close excel file
+        self.write_to_file(self.WRAP_INFO['Company Name'], self.WRAP_INFO['CAGE'], self.WRAP_INFO['DACIS'], self.WRAP_INFO['Type'], self.WRAP_INFO['Search Tag'])
         self.WQ.workbook.save(self.WQ.current_wrap)
         self.WQ.workbook.close()
         self.WQ.next_WRAP()
 
 
-
-if __name__ == '__main__':
-    wp = WRAP_POSTER('jlauretti','L@ur3tt1Jul13n!','Zach','Fearful4jesuit!','mmcnulty','mcnulty2015')
-    while True:
-        wp.post_product()
+    def write_to_file(self,Company_Name, CAGE, DACIS, WRAP_TYPE, search_tag):
+        file_title = "WRAPs Posted " + date.today().strftime("%d%m%Y") + ".txt"
+        WRAP_file = open(file_title, 'a')
+        WRAP_file.write(Company_Name + "\t" + CAGE + '\t' + DACIS + '\t' + WRAP_TYPE + "\t" + search_tag + '\n')
+        WRAP_file.close()
