@@ -20,12 +20,12 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from datetime import date
 
 
-class McNulty():
+class McNulty:
     """
-    Slightly modified web driver for the McNulty website. Simplified from WRAP Calculator version.
-    Did not make child class as no UI to filter results from search. Material handling check function
-    gave me some trouble, element attribute "value" doesnt actually display, had to put use key presses.
-    Most likely a Lasso problem: website construction used Lasso framework, this makes it finicky.
+    Modified web driver for the McNulty website. Simplified from WRAP Calculator version.
+    Did not make child class as no UI to filter results from search. Some interesting
+    stale element selenium exceptions are handled differently in a few places. Had to do some
+    experimenting between WebDriverWait's and time.sleep()'s to get it functioning.
     """
 
     def __init__(self, username, password, driver, window_handle):
@@ -36,22 +36,6 @@ class McNulty():
         self.driver.switch_to.window(window_handle)
         self.driver.get('https://primemover.mcnulty.us/index.lasso')
         self.login(username, password)
-
-
-    def type_text(self, string, web_element):
-        """
-        Helper function.
-        Types out strings that for some webelements that wont play nice.
-        """
-        web_element.click()
-        for char in string:
-            if char.isupper():
-                pyautogui.keyDown("shift")
-                pyautogui.press(char)
-                pyautogui.keyUp("shift")
-            else:
-                pyautogui.press(char)
-        pyautogui.press('enter')
 
 
     def login(self, username, password):
@@ -83,14 +67,18 @@ class McNulty():
             match = True
             try:
                 #type of WRAP
-                match = match and Type == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[4]').text
+                match = match and Type == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[4]').text.strip()
                 #DACIS
                 if not DACIS == "":
-                    match = match and DACIS == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[8]').text
+                    match = match and DACIS == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[8]').text.strip()
+                #CAGE
+                if not CAGE == "":
+                    match = match and CAGE == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[9]').text.strip()
                 #DUNS
-                match = match and DUNS == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[10]').text
+                if not DUNS == "":
+                    match = match and DUNS == self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[10]').text.strip()
                 if match:
-                    product_element = self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+str(i)+']/td[5]/a')
+                    product_element = self.driver.find_element_by_xpath('//*[@id="dataTable_wrapRateListing"]/tbody/tr['+ str(i) +']/td[5]/a')
                     self.driver.get(product_element.get_attribute('href'))
                     return None
                 i+=1
@@ -112,7 +100,10 @@ class McNulty():
             mover_decimal = float(mover_decimal_string)
         except ValueError:
             mover_decimal = 0.0
-        xl_decimal = float(xl_percent)
+        try:
+            xl_decimal = float(xl_percent)
+        except ValueError:
+            xl_decimal = 0.0
         if xl_decimal == mover_decimal:
             return True
         else:
@@ -160,6 +151,12 @@ class McNulty():
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]').send_keys(Keys.CONTROL + "a")
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]').send_keys(Keys.DELETE)
         self.driver.find_element_by_xpath('//*[@id="wrapData_eWrap_url"]').send_keys(Product_URL)
+
+        #click out so that the url field saves
+        time.sleep(0.5)
+        WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.XPATH, '/html/body/div[2]/div/div[2]/ul/li[6]/a')))
+        self.driver.find_element_by_xpath('/html/body/div[2]/div/div[2]/ul/li[5]/a').click()
+        time.sleep(0.5)
 
 
     def get_Product_Name(self):
